@@ -32,6 +32,8 @@ module.exports = {
       patterns: [
         { from: "./index.html", to: __dirname + "/dist" },
         { from: "./data.json", to: __dirname + "/dist" },
+        // Local user-defined-primitives build; copied in by build_local.sh.
+        { from: "./js.wasm", to: __dirname + "/dist", noErrorOnMissing: true },
       ],
     }),
   ],

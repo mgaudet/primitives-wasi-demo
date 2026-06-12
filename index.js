@@ -42,7 +42,9 @@ function executeCode() {
 
     let select = document.getElementById("branch");
     let branch = self.branches.find(el => el.branch === select.value);
-    let wasm_url = branch.url;
+    // Resolve against the page so a relative URL (e.g. a local "js.wasm")
+    // works regardless of where the worker script lives.
+    let wasm_url = new URL(branch.url, location.href).href;
 
     worker.postMessage({source, wasm_url});
     workerLastSource = source;
@@ -84,23 +86,39 @@ function changeBranch() {
     executeCode();
 }
 
-const initSource = `// Welcome to the SpiderMonkey JS shell compiled to WebAssembly!
+const initSource = `// User-defined primitives -- a SpiderMonkey prototype (compiled to WASI).
 //
-// JS code on this side is evaluated in a Web Worker as you type.
-// The output is printed on the right-hand side.
-//
-// The JS shell has various builtin functions for testing purposes.
-// help() will print a list of them.
+// 'Primitive' works like 'Proxy', but returns a factory that builds
+// identity-less primitive values with named slots and overloaded operators.
+// Edit the code; the output on the right updates as you type.
 
-print("Hello, world!");
-print("=".repeat(13));
+let Vec3 = new Primitive({
+  constructor(p, x, y, z) {
+    Primitive.setSlot(p, "x", x);
+    Primitive.setSlot(p, "y", y);
+    Primitive.setSlot(p, "z", z);
+  },
+  add(a, b) { return Vec3(a.x + b.x, a.y + b.y, a.z + b.z); },
+  sub(a, b) { return Vec3(a.x - b.x, a.y - b.y, a.z - b.z); },
+  mul(a, b) { return Vec3(a.x * b.x, a.y * b.y, a.z * b.z); },
+});
 
-let re = /(?<wday>\\w{3}) (?<month>\\w{3}) (?<day>\\d+)/;
-let groups = re.exec(new Date()).groups;
-print(\`Today is \${groups.wday}, \${groups.month} \${groups.day}.\`);
+let a = Vec3(1, 2, 3);
+let b = Vec3(1, 2, 3);
 
-print();
-print("2 ** 128 =", 2n ** 128n);
+print("typeof a    =", typeof a);    // "primitive" -- not an object
+print("a === b     =", a === b);     // true -- identity-less, compared slot-wise
+print("a.x,a.y,a.z =", a.x, a.y, a.z);
+
+let s = a + Vec3(4, 5, 6);           // operator overloading via the 'add' trap
+print("a + (4,5,6) =", s.x, s.y, s.z);
+
+// Program with free functions, like an int:
+function distance(v1, v2) {
+  let d = v2 - v1;
+  return Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+}
+print("distance    =", distance(Vec3(1, 2, 3), Vec3(100, 100, 0)));
 `;
 
 self.onload = async function() {
