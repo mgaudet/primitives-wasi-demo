@@ -3,13 +3,16 @@ const webpack = require('webpack');
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 const CopyPlugin = require("copy-webpack-plugin");
 
+// The built site is emitted into docs/ so GitHub Pages can serve it directly
+// via "Deploy from a branch" (main, /docs) -- no GitHub Actions needed.
 module.exports = {
   mode: "production",
   entry: {
       "main": "./index.js",
   },
   output: {
-    path: __dirname + '/dist/js',
+    path: __dirname + '/docs/js',
+    clean: true,
   },
   module: {
     rules: [
@@ -30,12 +33,13 @@ module.exports = {
     new MonacoWebpackPlugin(),
     new CopyPlugin({
       patterns: [
-        { from: "./index.html", to: __dirname + "/dist" },
-        { from: "./data.json", to: __dirname + "/dist" },
+        { from: "./index.html", to: __dirname + "/docs" },
+        { from: "./data.json", to: __dirname + "/docs" },
+        // Disable Jekyll so Pages serves the built files verbatim.
+        { from: "./.nojekyll", to: __dirname + "/docs", noErrorOnMissing: true },
         // Local user-defined-primitives build; copied in by build_local.sh.
-        { from: "./js.wasm", to: __dirname + "/dist", noErrorOnMissing: true },
+        { from: "./js.wasm", to: __dirname + "/docs", noErrorOnMissing: true },
       ],
     }),
   ],
 };
-

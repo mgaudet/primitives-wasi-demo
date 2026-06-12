@@ -3,6 +3,8 @@
 #
 # Set GECKO to your Gecko checkout if it isn't the default below. The wasm is
 # produced by: MOZCONFIG=mozconfig-wasi ./mach build  (see mozconfig-wasi).
+#
+# Output goes to docs/, which GitHub Pages serves directly (main, /docs).
 set -e
 
 GECKO="${GECKO:-/Volumes/CSData/firefox_primitives}"
@@ -16,10 +18,10 @@ fi
 cp "$WASM" ./js.wasm
 echo "Copied js.wasm ($(du -h ./js.wasm | cut -f1))"
 
+# webpack emits the site (including js.wasm and .nojekyll) into docs/.
 npm run build
-cp ./js.wasm ./dist/js.wasm
 
 echo
-echo "Done. Serve the playground with:"
-echo "    (cd dist && python3 -m http.server)"
-echo "then open http://localhost:8000/"
+echo "Built into docs/. Preview locally with:"
+echo "    (cd docs && python3 -m http.server)"
+echo "Deploy by committing docs/ and pushing; GitHub Pages serves main /docs."

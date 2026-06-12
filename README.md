@@ -15,18 +15,22 @@ To run it against a locally-built `js.wasm`:
 2) From this directory: `npm install`, then `./build_local.sh`
    (copies `obj-wasi/dist/bin/js` to `js.wasm` and runs `npm run build`;
    set `GECKO=/path/to/checkout` if it isn't the default).
-3) `cd dist && python3 -m http.server`, then open http://localhost:8000/.
+3) Preview locally: `cd docs && python3 -m http.server`, then open
+   http://localhost:8000/.
 
-The `user-primitives` entry in `data.json` points at the committed `js.wasm`.
-This fork is updated manually (the scheduled GitHub Actions workflow has been
-removed), and `js.wasm` is committed directly so a clone is self-contained. To
-refresh it after rebuilding the WASI shell, re-run `./build_local.sh`.
+Deployment (GitHub Pages, no Actions)
+-------------------------------------
+The site is built into `docs/`, which is committed. GitHub Pages serves it via
+*Settings -> Pages -> Deploy from a branch -> `main`, folder `/docs`*. To
+update the live site: rebuild (`./build_local.sh`), then commit `docs/` and
+push. Updates are entirely manual (the scheduled GitHub Actions workflow was
+removed). `js.wasm` is committed so a clone is self-contained.
 
 Build Instructions
 ------------------
 1) Run `npm install` to fetch dependencies.
-2) Run `npm run build` to generate the output files in `dist/`.
-3) Serve files in `dist/` (for example: `cd dist; python3 -m http.server`).
+2) Run `npm run build` to generate the site in `docs/`.
+3) Serve files in `docs/` (for example: `cd docs; python3 -m http.server`).
 
 `data.json` also keeps a `mozilla-central` entry pointing at a Mozilla CI
 `js.wasm`. Upstream this list was refreshed by `update_data_json.py` via GitHub

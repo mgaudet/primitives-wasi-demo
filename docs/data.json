@@ -1,0 +1,14 @@
+[
+ {
+  "branch": "user-primitives",
+  "url": "js.wasm",
+  "buildid": "local",
+  "rev": "user-defined-primitives prototype"
+ },
+ {
+  "branch": "mozilla-central",
+  "url": "https://firefoxci.taskcluster-artifacts.net/abYo5hNORyOHsaIogM5KHA/0/public/build/js.wasm",
+  "buildid": "20260612082129",
+  "rev": "a426f361a2063db837bc1f7b4c3ac3363dba4e32"
+ }
+]
