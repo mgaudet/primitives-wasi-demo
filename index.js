@@ -87,10 +87,12 @@ function changeBranch() {
 }
 
 const initSource = `// User-defined primitives -- a SpiderMonkey prototype (compiled to WASI).
+// Read https://www.mgaudet.ca/technical/2025/2/24/user-defined-primitives-a-sketch for some
+// motivation.
 //
 // 'Primitive' works like 'Proxy', but returns a factory that builds
 // identity-less primitive values with named slots and overloaded operators.
-// Edit the code; the output on the right updates as you type.
+
 
 let Vec3 = new Primitive({
   constructor(p, x, y, z) {
