@@ -86,7 +86,10 @@ function changeBranch() {
     executeCode();
 }
 
-const initSource = `// User-defined primitives -- a SpiderMonkey prototype (compiled to WASI).
+const examples = [
+    {
+        name: "Vec3",
+        source: `// User-defined primitives -- a SpiderMonkey prototype (compiled to WASI).
 // Read https://www.mgaudet.ca/technical/2025/2/24/user-defined-primitives-a-sketch for some
 // motivation.
 //
@@ -121,7 +124,97 @@ function distance(v1, v2) {
   return Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
 }
 print("distance    =", distance(Vec3(1, 2, 3), Vec3(100, 100, 0)));
-`;
+`,
+    },
+    {
+        name: "Records",
+        source: `// The Records proposal (https://github.com/tc39/proposal-record-tuple),
+// re-implemented as a *library* on top of user-defined primitives -- no \`#{}\`
+// syntax. \`Recordify(obj)\` returns an identity-less record primitive.
+//
+// The trick that makes \`==\` work: a user primitive's equality is "same factory
+// + slot-wise equal". So every record with the *same set of keys* must share a
+// single factory. A global registry canonicalizes (sorted key set) -> factory.
+
+
+// Issue: This is leaky because the registry can never drop anything.
+var RecordRegistry = new Map();
+
+function recordFactoryFor(names) {
+  // \`names\` is the sorted key list; its JSON is the registry key.
+  let key = JSON.stringify(names);
+  let factory = RecordRegistry.get(key);
+  if (factory) return factory;
+  factory = new Primitive({
+    constructor(p, ...values) {
+      for (let i = 0; i < names.length; i++) {
+        Primitive.setSlot(p, names[i], values[i]);
+      }
+    },
+  });
+  RecordRegistry.set(key, factory);
+  return factory;
+}
+
+function Recordify(obj) {
+  // Records are key-order-independent, so canonicalize by sorting keys.
+  let names = Object.keys(obj).sort();
+  let factory = recordFactoryFor(names);
+  let values = names.map(n => {
+    let v = obj[n];
+    // Records are deep: recursively recordify nested plain objects. Values that
+    // are already primitives (incl. record primitives) pass straight through.
+    if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+      return Recordify(v);
+    }
+    return v;
+  });
+  return factory(...values);
+}
+
+let r = Recordify({ x: 10, y: 10 });
+print("r.x =", r.x, "/ r.y =", r.y);           // r.x = 10 / r.y = 10
+assertEq(r.x, 10);
+assertEq(r.y, 10);
+print("typeof r =", typeof r);                 // primitive
+assertEq(typeof r, "primitive");
+
+// Two independently-built copies compare equal (== and ===), no .equals().
+print("copies == :", Recordify({ x: 10, y: 10 }) == Recordify({ x: 10, y: 10 }));   // true
+print("copies ===:", Recordify({ x: 10, y: 10 }) === Recordify({ x: 10, y: 10 }));  // true
+assertEq(Recordify({ x: 10, y: 10 }) == Recordify({ x: 10, y: 10 }), true);
+assertEq(Recordify({ x: 10, y: 10 }) === Recordify({ x: 10, y: 10 }), true);
+
+// Key order is irrelevant -- both canonicalize to the same factory.
+print("key order ===:", Recordify({ x: 1, y: 2 }) === Recordify({ y: 2, x: 1 }));   // true
+assertEq(Recordify({ x: 1, y: 2 }) === Recordify({ y: 2, x: 1 }), true);
+
+// Deep: nested objects are recordified, and equality recurses slot-wise.
+print("nested ===:", Recordify({ a: Recordify({ n: 1 }) }) === Recordify({ a: { n: 1 } })); // true
+assertEq(Recordify({ a: Recordify({ n: 1 }) }) === Recordify({ a: { n: 1 } }), true);
+assertEq(Recordify({ a: { n: 1 } }) === Recordify({ a: { n: 2 } }), false);
+
+
+const ship1 = Recordify({ x: 1, y: 2 }); // a record
+const ship2 = { x: -1, y: 3 };           // an ordinary object
+
+function move(start, deltaX, deltaY) {
+  // Always return a record after moving.
+  return Recordify({ x: start.x + deltaX, y: start.y + deltaY });
+}
+
+const ship1Moved = move(ship1, 1, 0);  // record {x:2, y:2}
+const ship2Moved = move(ship2, 3, -1); // record {x:2, y:2}
+
+// Same coordinates after moving -> the two records are ===, even though their
+// inputs were a record and a plain object respectively.
+print("ship1Moved === ship2Moved:", ship1Moved === ship2Moved); // true
+assertEq(ship1Moved === ship2Moved, true);
+`,
+    },
+];
+
+const initSource = examples[0].source;
 
 self.onload = async function() {
     let response = await fetch("data.json");
@@ -135,6 +228,20 @@ self.onload = async function() {
     }
 
     self.branches = branches;
+
+    let examplesSelect = document.getElementById("examples");
+    for (let example of examples) {
+        let option = document.createElement("option");
+        option.value = example.name;
+        option.text = example.name;
+        examplesSelect.appendChild(option);
+    }
+    examplesSelect.onchange = function() {
+        let example = examples.find(e => e.name === examplesSelect.value);
+        if (example) {
+            editor.setValue(example.source);
+        }
+    };
 
     let params = new URLSearchParams(window.location.search);
     let source = params.has("source") ? decodeURIComponent(params.get("source")) : initSource;
