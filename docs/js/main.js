@@ -170853,8 +170853,8 @@ function executeCode() {
         };
     }
 
-    let select = document.getElementById("branch");
-    let branch = self.branches.find(el => el.branch === select.value);
+    // The branch selector is currently hidden; default to the first branch.
+    let branch = self.branches[0];
     // Resolve against the page so a relative URL (e.g. a local "js.wasm")
     // works regardless of where the worker script lives.
     let wasm_url = new URL(branch.url, location.href).href;
@@ -170877,26 +170877,8 @@ function executeCode() {
 
 function shareCode() {
     let url = window.location.href.split('?')[0];
-    url += "?branch=" + document.getElementById("branch").value;
-    url += "&source=" + encodeURIComponent(editor.getValue());
+    url += "?source=" + encodeURIComponent(editor.getValue());
     navigator.clipboard.writeText(url);
-}
-
-function showBuildInfo(name) {
-    let build = self.branches.find(el => el.branch === name);
-    let info = document.getElementById("build_info");
-    info.innerText = `build: ${build.buildid} (rev ${build.rev.substr(0, 6)})`;
-}
-
-function changeBranch() {
-    showBuildInfo(this.value);
-    if (worker) {
-        worker.terminate();
-    }
-    workerIsRunning = false;
-    worker = null;
-    workerLastSource = null;
-    executeCode();
 }
 
 const examples = [
@@ -171032,14 +171014,6 @@ const initSource = examples[0].source;
 self.onload = async function() {
     let response = await fetch("data.json");
     let branches = await response.json();
-    let select = document.getElementById("branch");
-    for (let branch of branches) {
-        var option = document.createElement("option");
-        option.value = branch.branch;
-        option.text = branch.branch;
-        select.appendChild(option);
-    }
-
     self.branches = branches;
 
     let examplesSelect = document.getElementById("examples");
@@ -171058,11 +171032,6 @@ self.onload = async function() {
 
     let params = new URLSearchParams(window.location.search);
     let source = params.has("source") ? decodeURIComponent(params.get("source")) : initSource;
-
-    if (params.has("branch")) {
-        let branch = params.get("branch");
-        select.value = branch;
-    }
 
     editor = monaco_editor__WEBPACK_IMPORTED_MODULE_0__.editor.create(document.getElementById("editor"), {
         value: source,
@@ -171086,9 +171055,6 @@ self.onload = async function() {
         executeCode();
     });
     executeCode();
-
-    showBuildInfo(select.value);
-    select.onchange = changeBranch;
 
     document.getElementById("share").onclick = shareCode;
 };
