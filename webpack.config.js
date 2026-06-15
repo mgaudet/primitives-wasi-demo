@@ -7,6 +7,9 @@ const CopyPlugin = require("copy-webpack-plugin");
 // via "Deploy from a branch" (main, /docs) -- no GitHub Actions needed.
 module.exports = {
   mode: "production",
+  optimization: {
+    minimize: false,
+  },
   entry: {
       "main": "./index.js",
   },
