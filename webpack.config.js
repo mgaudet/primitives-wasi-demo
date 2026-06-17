@@ -27,6 +27,12 @@ module.exports = {
         test: /\.ttf$/,
         use: ['file-loader'],
       },
+      {
+        // Import a file's verbatim text with `import src from './x.js?raw'`.
+        // Used for the large bundled example sources (e.g. the Decimal demo).
+        resourceQuery: /raw/,
+        type: 'asset/source',
+      },
     ],
   },
   plugins: [

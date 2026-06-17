@@ -30,7 +30,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "setupJavaScript": () => (/* binding */ setupJavaScript),
 /* harmony export */   "setupTypeScript": () => (/* binding */ setupTypeScript)
 /* harmony export */ });
-/* harmony import */ var _editor_editor_api_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(87453);
+/* harmony import */ var _editor_editor_api_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(50158);
 /* harmony import */ var _monaco_contribution_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(39585);
 /*!-----------------------------------------------------------------------------
  * Copyright (c) Microsoft Corporation. All rights reserved.

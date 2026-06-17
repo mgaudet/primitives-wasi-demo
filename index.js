@@ -1,4 +1,7 @@
 import * as monaco from 'monaco-editor'
+// The Decimal demo bundles the full decimal.js library, so it is kept in its own
+// file and imported here as verbatim text (see the `?raw` rule in webpack.config.js).
+import decimalSource from './examples/decimal-demo.js?raw'
 
 self.MonacoEnvironment = {
     getWorkerUrl: function(moduleId, label) {
@@ -193,6 +196,87 @@ const ship2Moved = move(ship2, 3, -1); // record {x:2, y:2}
 print("ship1Moved === ship2Moved:", ship1Moved === ship2Moved); // true
 assertEq(ship1Moved === ship2Moved, true);
 `,
+    },
+    {
+        name: "Features tour",
+        source: `// A tour of user-defined-primitive features beyond plain arithmetic:
+// value-keyed Map/Set, instanceof, a toString trap, and the bitwise and
+// relational operators -- all dispatched eagerly and same-factory-only.
+
+let Vec3 = new Primitive({
+  constructor(p, x, y, z) {
+    Primitive.setSlot(p, "x", x);
+    Primitive.setSlot(p, "y", y);
+    Primitive.setSlot(p, "z", z);
+  },
+  add(a, b) { return Vec3(a.x + b.x, a.y + b.y, a.z + b.z); },
+  // A single 'lessThan' trap backs <, <=, >, >= (compare by magnitude here).
+  lessThan(a, b) {
+    let ma = a.x * a.x + a.y * a.y + a.z * a.z;
+    let mb = b.x * b.x + b.y * b.y + b.z * b.z;
+    return ma < mb;
+  },
+  // 'toString' backs ToString (String(), template literals, concatenation).
+  toString(v) { return "Vec3(" + v.x + ", " + v.y + ", " + v.z + ")"; },
+});
+
+let a = Vec3(1, 2, 3);
+let b = Vec3(1, 2, 3);   // distinct construction, equal slots
+
+// --- Value semantics in Map/Set (keyed by value, not identity) ---
+let m = new Map();
+m.set(a, "hit");
+print("m.get(b)      =", m.get(b));       // "hit" -- b is a different cell but equal
+assertEq(m.get(b), "hit");
+let s = new Set([Vec3(0,0,0), Vec3(0,0,0)]);
+print("set dedups    =", s.size);          // 1
+assertEq(s.size, 1);
+
+// --- instanceof disambiguates factories ---
+let Vec2 = new Primitive({
+  constructor(p, x, y) { Primitive.setSlot(p, "x", x); Primitive.setSlot(p, "y", y); },
+});
+print("a  instanceof Vec3 =", a instanceof Vec3);            // true
+print("a  instanceof Vec2 =", a instanceof Vec2);            // false
+assertEq(a instanceof Vec3, true);
+assertEq(Vec2(1,2) instanceof Vec3, false);
+
+// --- toString trap ---
+print("String(a)     =", String(a));       // "Vec3(1, 2, 3)"
+print("template       =", \`v=\${a}\`);        // "v=Vec3(1, 2, 3)"
+assertEq(String(a), "Vec3(1, 2, 3)");
+
+// --- relational operators, all from the one lessThan trap ---
+let big = Vec3(10, 10, 10);
+print("a < big       =", a < big);          // true
+print("big >= a      =", big >= a);         // true
+assertEq(a < big, true);
+assertEq(big > a, true);
+assertEq(a <= Vec3(1, 2, 3), true);
+
+// --- bitwise operators (per-operator traps) ---
+let Flags = new Primitive({
+  constructor(p, bits) { Primitive.setSlot(p, "bits", bits | 0); },
+  bitOr(a, b)  { return Flags(a.bits | b.bits); },
+  bitAnd(a, b) { return Flags(a.bits & b.bits); },
+  bitXor(a, b) { return Flags(a.bits ^ b.bits); },
+  shiftLeft(a, b)  { return Flags(a.bits << b.bits); },
+  toString(f) { return "0b" + (f.bits >>> 0).toString(2); },
+});
+let READ = Flags(1), WRITE = Flags(2), EXEC = Flags(4);
+let rwx = READ | WRITE | EXEC;
+print("rwx           =", rwx);              // 0b111
+print("rwx & WRITE   =", rwx & WRITE);      // 0b10
+print("1 << 4        =", Flags(1) << Flags(4)); // 0b10000
+assertEq((rwx & WRITE) === WRITE, true);
+assertEq((Flags(1) << Flags(4)) === Flags(16), true);
+
+print("Features tour passed.");
+`,
+    },
+    {
+        name: "Decimal",
+        source: decimalSource,
     },
 ];
 
