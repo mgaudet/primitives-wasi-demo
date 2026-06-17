@@ -171098,7 +171098,8 @@ print("Features tour passed.");
     },
 ];
 
-const initSource = examples[0].source;
+const defaultExample = "Features tour";
+const initSource = examples.find(e => e.name === defaultExample).source;
 
 self.onload = async function() {
     let response = await fetch("data.json");
@@ -171112,6 +171113,7 @@ self.onload = async function() {
         option.text = example.name;
         examplesSelect.appendChild(option);
     }
+    examplesSelect.value = defaultExample;
     examplesSelect.onchange = function() {
         let example = examples.find(e => e.name === examplesSelect.value);
         if (example) {
