@@ -29,7 +29,7 @@ module.exports = {
       },
       {
         // Import a file's verbatim text with `import src from './x.js?raw'`.
-        // Used for the large bundled example sources (e.g. the Decimal demo).
+        // Used for example sources kept in their own files (e.g. the Rational demo).
         resourceQuery: /raw/,
         type: 'asset/source',
       },

@@ -1,7 +1,7 @@
 import * as monaco from 'monaco-editor'
-// The Decimal demo bundles the full decimal.js library, so it is kept in its own
-// file and imported here as verbatim text (see the `?raw` rule in webpack.config.js).
-import decimalSource from './examples/decimal-demo.js?raw'
+// The Rational demo is kept in its own file and imported here as verbatim text
+// (see the `?raw` rule in webpack.config.js).
+import rationalSource from './examples/rational-demo.js?raw'
 
 self.MonacoEnvironment = {
     getWorkerUrl: function(moduleId, label) {
@@ -275,8 +275,8 @@ print("Features tour passed.");
 `,
     },
     {
-        name: "Decimal",
-        source: decimalSource,
+        name: "Rational",
+        source: rationalSource,
     },
 ];
 
