@@ -170908,7 +170908,16 @@ let Vec3 = new Primitive({
   },
   add(a, b) { return Vec3(a.x + b.x, a.y + b.y, a.z + b.z); },
   sub(a, b) { return Vec3(a.x - b.x, a.y - b.y, a.z - b.z); },
-  mul(a, b) { return Vec3(a.x * b.x, a.y * b.y, a.z * b.z); },
+  // '*' scales by a number or does a component-wise product with another Vec3.
+  // Dispatch is left-associative: a Vec3 on the left calls 'mul'.
+  mul(a, b) {
+    return typeof b === "number"
+      ? Vec3(a.x * b, a.y * b, a.z * b)
+      : Vec3(a.x * b.x, a.y * b.y, a.z * b.z);
+  },
+  // 'rmul' is the reverse trap (like Python's __rmul__): a Vec3 on the *right*
+  // of '*' calls it, so a scalar may sit on either side (2 * v).
+  rmul(a, b) { return Vec3(b.x * a, b.y * a, b.z * a); },
 });
 
 let a = Vec3(1, 2, 3);
@@ -170920,6 +170929,10 @@ print("a.x,a.y,a.z =", a.x, a.y, a.z);
 
 let s = a + Vec3(4, 5, 6);           // operator overloading via the 'add' trap
 print("a + (4,5,6) =", s.x, s.y, s.z);
+
+// Scalar scaling works on either side, via the 'mul' and 'rmul' traps:
+print("a * 2       =", (a * 2).x, (a * 2).y, (a * 2).z);   // 2 4 6  (mul)
+print("10 * a      =", (10 * a).x, (10 * a).y, (10 * a).z); // 10 20 30 (rmul)
 
 // Program with free functions, like an int:
 function distance(v1, v2) {
@@ -171016,10 +171029,61 @@ assertEq(ship1Moved === ship2Moved, true);
 `,
     },
     {
+        name: "Records & Tuples",
+        source: `// Built-in Records & Tuples via 'Primitive.of'. The engine canonicalizes the
+// backing factory per structural shape in a per-Zone *weak* table, so equal
+// values are === with no userland registry -- and, unlike the "Records" example
+// (a library whose registry can never drop anything), nothing leaks.
+//
+//   Primitive.of({a, b})  -> a record primitive (named slots)
+//   Primitive.of([x, y])  -> a tuple  primitive (indexed slots + length)
+
+// --- Records ---
+let r = Primitive.of({ x: 10, y: 20 });
+print("typeof r          =", typeof r);          // "primitive"
+print("r.x, r.y          =", r.x, r.y);          // 10 20
+assertEq(typeof r, "primitive");
+
+// Identity-less: two independently-built records are === (key order ignored).
+print("equal records === =", Primitive.of({ x: 1, y: 2 }) === Primitive.of({ y: 2, x: 1 }));
+assertEq(Primitive.of({ x: 1, y: 2 }) === Primitive.of({ y: 2, x: 1 }), true);
+
+// Deep: nested plain objects become nested records; equality recurses.
+print("nested ===        =", Primitive.of({ a: { n: 1 } }) === Primitive.of({ a: { n: 1 } }));
+assertEq(Primitive.of({ a: { n: 1 } }) === Primitive.of({ a: { n: 2 } }), false);
+
+// --- Tuples ---
+let t = Primitive.of([10, 20, 30]);
+print("t[0], t.length    =", t[0], t.length);    // 10 3
+assertEq(t.length, 3);
+print("equal tuples ===  =", Primitive.of([1, [2, 3]]) === Primitive.of([1, [2, 3]]));
+assertEq(Primitive.of([1, [2, 3]]) === Primitive.of([1, [2, 3]]), true);
+
+// A tuple and a record with the same slot names are different kinds.
+print("tuple === record  =", Primitive.of([1, 2]) === Primitive.of({ 0: 1, 1: 2 })); // false
+assertEq(Primitive.of([1, 2]) === Primitive.of({ 0: 1, 1: 2 }), false);
+
+// --- Value semantics as Map/Set keys ---
+let m = new Map();
+m.set(Primitive.of({ x: 1, y: 2 }), "hit");
+print("map by value      =", m.get(Primitive.of({ y: 2, x: 1 })));   // "hit"
+assertEq(m.get(Primitive.of({ y: 2, x: 1 })), "hit");
+
+let s = new Set([Primitive.of([1, 2]), Primitive.of([1, 2])]);
+print("set dedups        =", s.size);            // 1
+assertEq(s.size, 1);
+
+print("Records & Tuples passed.");
+`,
+    },
+    {
         name: "Features tour",
         source: `// A tour of user-defined-primitive features beyond plain arithmetic:
 // value-keyed Map/Set, instanceof, a toString trap, and the bitwise and
-// relational operators -- all dispatched eagerly and same-factory-only.
+// relational operators. Arithmetic/bitwise operators dispatch left-associatively
+// (a primitive on the left calls the forward trap, on the right the reverse 'r'
+// trap), so a plain number can sit on either side. Relational operators are
+// same-factory-only.
 
 let Vec3 = new Primitive({
   constructor(p, x, y, z) {
@@ -171072,22 +171136,30 @@ assertEq(a < big, true);
 assertEq(big > a, true);
 assertEq(a <= Vec3(1, 2, 3), true);
 
-// --- bitwise operators (per-operator traps) ---
+// --- bitwise operators (per-operator traps), with plain numbers on either side ---
+// 'bits()' lets a trap accept either a Flags or a raw number operand; the 'r'
+// traps handle the case where the number is on the left (e.g. 1 | READ).
 let Flags = new Primitive({
   constructor(p, bits) { Primitive.setSlot(p, "bits", bits | 0); },
-  bitOr(a, b)  { return Flags(a.bits | b.bits); },
-  bitAnd(a, b) { return Flags(a.bits & b.bits); },
-  bitXor(a, b) { return Flags(a.bits ^ b.bits); },
-  shiftLeft(a, b)  { return Flags(a.bits << b.bits); },
+  bitOr(a, b)  { return Flags(a.bits | bits(b)); },
+  bitAnd(a, b) { return Flags(a.bits & bits(b)); },
+  bitXor(a, b) { return Flags(a.bits ^ bits(b)); },
+  shiftLeft(a, b)  { return Flags(a.bits << bits(b)); },
+  rbitOr(a, b)  { return Flags(bits(a) | b.bits); },
+  rbitAnd(a, b) { return Flags(bits(a) & b.bits); },
+  rshiftLeft(a, b) { return Flags(bits(a) << b.bits); },
   toString(f) { return "0b" + (f.bits >>> 0).toString(2); },
 });
+function bits(v) { return typeof v === "number" ? v : v.bits; }
 let READ = Flags(1), WRITE = Flags(2), EXEC = Flags(4);
 let rwx = READ | WRITE | EXEC;
 print("rwx           =", rwx);              // 0b111
 print("rwx & WRITE   =", rwx & WRITE);      // 0b10
-print("1 << 4        =", Flags(1) << Flags(4)); // 0b10000
+print("READ | 4      =", READ | 4);         // 0b101  (number on the right, 'bitOr')
+print("1 << EXEC     =", 1 << EXEC);        // 0b10000 (number on the left, 'rshiftLeft')
 assertEq((rwx & WRITE) === WRITE, true);
-assertEq((Flags(1) << Flags(4)) === Flags(16), true);
+assertEq((READ | 4) === Flags(5), true);
+assertEq((1 << EXEC) === Flags(16), true);
 
 print("Features tour passed.");
 `,
