@@ -74,6 +74,14 @@
             color: white;
             border: 1px solid #555;
         }
+        #features {
+            font-size: 12px;
+        }
+        #features label {
+            margin-left: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
     </style>
 </head>
 <body>
@@ -82,6 +90,11 @@
             <h1><a href="https://www.mgaudet.ca/technical/2025/2/24/user-defined-primitives-a-sketch">Primitive Types</a> In Javascript Demo</h1>
             <button id="share">Copy URL</button>
             examples: <select id="examples"></select>
+            <span id="features">
+                <label title="When off, Primitive.setSlot rejects object values, so a primitive can only hold other primitives."><input type="checkbox" id="feat-slots-objects" checked> slots store objects</label>
+                <label title="When on, a binary operator only dispatches to a trap if BOTH operands are user-defined primitives (no reverse 'r' traps, so a plain number can't sit on either side)."><input type="checkbox" id="feat-require-both"> operators require both primitives</label>
+                <label title="When on, an overloaded operator only dispatches if the operand's factory is lexically enabled with a 'with operators from <factory>;' statement in scope."><input type="checkbox" id="feat-require-scope"> operators require lexical scope</label>
+            </span>
             <!-- branch: <select id="branch"></select>
             <span id="build_info"></span> -->
         </div>

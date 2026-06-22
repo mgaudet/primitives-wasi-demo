@@ -19,7 +19,7 @@ let wasmModule = null;
 // randomfill/browser.js that wasmer-js uses.
 self.process = {browser: true};
 
-async function run(source, wasm_url) {
+async function run(source, wasm_url, prefs) {
     let isFirstRun = false;
     if (!wasmModule) {
         isFirstRun = true;
@@ -28,8 +28,14 @@ async function run(source, wasm_url) {
         wasmModule = await WebAssembly.compileStreaming(response);
     }
 
+    // Each feature toggle becomes a `--setpref name=value` argument.
+    let prefArgs = [];
+    for (let pref of (prefs || [])) {
+        prefArgs.push("--setpref", pref);
+    }
+
     let wasi = new _wasmer_wasi__WEBPACK_IMPORTED_MODULE_0__/* .WASI */ .xP({
-        args: ["js.wasm", "-f", "/input.js",
+        args: ["js.wasm", ...prefArgs, "-f", "/input.js",
                "--selfhosted-xdr-path=/selfhosted.bin",
                "--selfhosted-xdr-mode=" + (isFirstRun ? "encode" : "decode")],
         preopens: {'/': '/'},
@@ -63,8 +69,8 @@ async function run(source, wasm_url) {
 };
 
 self.onmessage = function(e) {
-    let {source, wasm_url} = e.data;
-    run(source, wasm_url);
+    let {source, wasm_url, prefs} = e.data;
+    run(source, wasm_url, prefs);
 };
 
 

@@ -19,15 +19,33 @@ function setOutput(stderr, stdout) {
 
 let worker = null;
 let workerLastSource = null;
+let workerLastPrefs = null;
 
 let workerIsRunning = false;
 let workerKillTimeout = null;
 
 let editor = null;
 
+// Map the feature checkboxes to SpiderMonkey prefs (passed to js.wasm as
+// --setpref name=value). The default checkbox states match the prototype's
+// default pref values, so an unchanged UI passes prefs equal to the defaults.
+function featurePrefs() {
+    let slotsObjects = document.getElementById("feat-slots-objects").checked;
+    let requireBoth = document.getElementById("feat-require-both").checked;
+    let requireScope = document.getElementById("feat-require-scope").checked;
+    return [
+        "experimental.user_primitives_slots_allow_objects=" + slotsObjects,
+        "experimental.user_primitives_operators_require_both=" + requireBoth,
+        "experimental.user_primitives_operators_require_scope=" + requireScope,
+    ];
+}
+
 function executeCode() {
     let source = editor.getValue();
-    if (workerIsRunning || source === workerLastSource) {
+    let prefs = featurePrefs();
+    let prefsKey = prefs.join("\n");
+    if (workerIsRunning ||
+        (source === workerLastSource && prefsKey === workerLastPrefs)) {
         return;
     }
     if (worker === null) {
@@ -49,8 +67,9 @@ function executeCode() {
     // works regardless of where the worker script lives.
     let wasm_url = new URL(branch.url, location.href).href;
 
-    worker.postMessage({source, wasm_url});
+    worker.postMessage({source, wasm_url, prefs});
     workerLastSource = source;
+    workerLastPrefs = prefsKey;
     workerIsRunning = true;
 
     workerKillTimeout = setTimeout(function() {
@@ -68,6 +87,9 @@ function executeCode() {
 function shareCode() {
     let url = window.location.href.split('?')[0];
     url += "?source=" + encodeURIComponent(editor.getValue());
+    url += "&slotsObjects=" + document.getElementById("feat-slots-objects").checked;
+    url += "&requireBoth=" + document.getElementById("feat-require-both").checked;
+    url += "&requireScope=" + document.getElementById("feat-require-scope").checked;
     navigator.clipboard.writeText(url);
 }
 
@@ -284,40 +306,55 @@ let Vec3 = new Primitive({
   toString(v) { return "Vec3(" + v.x + ", " + v.y + ", " + v.z + ")"; },
 });
 
-let a = Vec3(1, 2, 3);
-let b = Vec3(1, 2, 3);   // distinct construction, equal slots
+{
+  with operators from Vec3;
 
-// --- Value semantics in Map/Set (keyed by value, not identity) ---
-let m = new Map();
-m.set(a, "hit");
-print("m.get(b)      =", m.get(b));       // "hit" -- b is a different cell but equal
-assertEq(m.get(b), "hit");
-let s = new Set([Vec3(0,0,0), Vec3(0,0,0)]);
-print("set dedups    =", s.size);          // 1
-assertEq(s.size, 1);
+  let a = Vec3(1, 2, 3);
+  let b = Vec3(1, 2, 3);   // distinct construction, equal slots
 
-// --- instanceof disambiguates factories ---
-let Vec2 = new Primitive({
-  constructor(p, x, y) { Primitive.setSlot(p, "x", x); Primitive.setSlot(p, "y", y); },
-});
-print("a  instanceof Vec3 =", a instanceof Vec3);            // true
-print("a  instanceof Vec2 =", a instanceof Vec2);            // false
-assertEq(a instanceof Vec3, true);
-assertEq(Vec2(1,2) instanceof Vec3, false);
+  // --- Value semantics in Map/Set (keyed by value, not identity) ---
+  let m = new Map();
+  m.set(a, "hit");
+  print("m.get(b)      =", m.get(b));       // "hit" -- b is a different cell but equal
+  assertEq(m.get(b), "hit");
+  let s = new Set([Vec3(0,0,0), Vec3(0,0,0)]);
+  print("set dedups    =", s.size);          // 1
+  assertEq(s.size, 1);
 
-// --- toString trap ---
-print("String(a)     =", String(a));       // "Vec3(1, 2, 3)"
-print("template       =", \`v=\${a}\`);        // "v=Vec3(1, 2, 3)"
-assertEq(String(a), "Vec3(1, 2, 3)");
+  // --- instanceof disambiguates factories ---
+  let Vec2 = new Primitive({
+    constructor(p, x, y) { Primitive.setSlot(p, "x", x); Primitive.setSlot(p, "y", y); },
+  });
+  print("a  instanceof Vec3 =", a instanceof Vec3);            // true
+  print("a  instanceof Vec2 =", a instanceof Vec2);            // false
+  assertEq(a instanceof Vec3, true);
+  assertEq(Vec2(1,2) instanceof Vec3, false);
 
-// --- relational operators, all from the one lessThan trap ---
-let big = Vec3(10, 10, 10);
-print("a < big       =", a < big);          // true
-print("big >= a      =", big >= a);         // true
-assertEq(a < big, true);
-assertEq(big > a, true);
-assertEq(a <= Vec3(1, 2, 3), true);
+  // --- toString trap ---
+  print("String(a)     =", String(a));       // "Vec3(1, 2, 3)"
+  print("template       =", \`v=\${a}\`);        // "v=Vec3(1, 2, 3)"
+  assertEq(String(a), "Vec3(1, 2, 3)");
 
+  // --- relational operators, all from the one lessThan trap ---
+  let big = Vec3(10, 10, 10);
+  print("a < big       =", a < big);          // true
+  print("big >= a      =", big >= a);         // true
+  assertEq(a < big, true);
+  assertEq(big > a, true);
+  assertEq(a <= Vec3(1, 2, 3), true);
+}
+
+{
+  let a = Vec3(1, 2, 3);
+  let b = Vec3(1, 2, 3);   // distinct construction, equal slots
+
+  try {
+    a+b;
+  } catch (e) {
+    print(e)
+  }
+
+}
 // --- bitwise operators (per-operator traps), with plain numbers on either side ---
 // 'bits()' lets a trap accept either a Flags or a raw number operand; the 'r'
 // traps handle the case where the number is on the left (e.g. 1 | READ).
@@ -332,23 +369,70 @@ let Flags = new Primitive({
   rshiftLeft(a, b) { return Flags(bits(a) << b.bits); },
   toString(f) { return "0b" + (f.bits >>> 0).toString(2); },
 });
-function bits(v) { return typeof v === "number" ? v : v.bits; }
-let READ = Flags(1), WRITE = Flags(2), EXEC = Flags(4);
-let rwx = READ | WRITE | EXEC;
-print("rwx           =", rwx);              // 0b111
-print("rwx & WRITE   =", rwx & WRITE);      // 0b10
-print("READ | 4      =", READ | 4);         // 0b101  (number on the right, 'bitOr')
-print("1 << EXEC     =", 1 << EXEC);        // 0b10000 (number on the left, 'rshiftLeft')
-assertEq((rwx & WRITE) === WRITE, true);
-assertEq((READ | 4) === Flags(5), true);
-assertEq((1 << EXEC) === Flags(16), true);
 
-print("Features tour passed.");
-`,
+{
+  with operators from Flags; 
+
+  function bits(v) { return typeof v === "number" ? v : v.bits; }
+  let READ = Flags(1), WRITE = Flags(2), EXEC = Flags(4);
+  let rwx = READ | WRITE | EXEC;
+  print("rwx           =", rwx);              // 0b111
+  print("rwx & WRITE   =", rwx & WRITE);      // 0b10
+  print("READ | 4      =", READ | 4);         // 0b101  (number on the right, 'bitOr')
+  print("1 << EXEC     =", 1 << EXEC);        // 0b10000 (number on the left, 'rshiftLeft')
+  assertEq((rwx & WRITE) === WRITE, true);
+  assertEq((READ | 4) === Flags(5), true);
+  assertEq((1 << EXEC) === Flags(16), true);
+
+  print("Features tour passed.");
+}`,
     },
     {
         name: "Rational",
         source: rationalSource,
+    },
+    {
+        name: "Scoped operators",
+        source: `// Lexically-scoped operator overloading (TC39 operator-overloading proposal
+// syntax). Turn ON the "operators require lexical scope" checkbox above to see
+// it: an overloaded operator then only works where its factory has been
+// enabled with a \`with operators from <factory>;\` statement in scope.
+//
+// With the checkbox OFF, operators always dispatch and \`with operators from\`
+// is a harmless no-op -- toggle it to feel the difference.
+
+let Vec = new Primitive({
+  constructor(p, x, y) { Primitive.setSlot(p, "x", x); Primitive.setSlot(p, "y", y); },
+  add(a, b) { return Vec(a.x + b.x, a.y + b.y); },
+  toString(v) { return "Vec(" + v.x + ", " + v.y + ")"; },
+});
+
+function tryOp(label, f) {
+  try { print(label, "=>", String(f())); }
+  catch (e) { print(label, "=> " + e.constructor.name + ":", e.message); }
+}
+
+// Not enabled at the top level: with the checkbox ON this throws a TypeError.
+tryOp("top-level Vec+Vec", () => Vec(1, 2) + Vec(3, 4));
+
+{
+  // Enable operator overloading for Vec for the rest of this block (and any
+  // nested blocks / closures defined here). The factory expression is
+  // evaluated here, so a freshly-built factory works too.
+  with operators from Vec;
+
+  print("in-scope  Vec+Vec =>", String(Vec(1, 2) + Vec(3, 4)));   // Vec(4, 6)
+
+  // A closure defined in the scope keeps the enablement when called later.
+  var laterAdd = () => Vec(10, 20) + Vec(1, 1);
+}
+
+// Outside the block again: with the checkbox ON this throws.
+tryOp("after-block Vec+Vec", () => Vec(1, 2) + Vec(3, 4));
+
+// ...but the closure carries its definition-site enablement.
+print("closure laterAdd  =>", String(laterAdd()));               // Vec(11, 21)
+`,
     },
 ];
 
@@ -377,6 +461,20 @@ self.onload = async function() {
 
     let params = new URLSearchParams(window.location.search);
     let source = params.has("source") ? decodeURIComponent(params.get("source")) : initSource;
+
+    // Restore feature toggles from a shared URL (default to the checkbox markup).
+    if (params.has("slotsObjects")) {
+        document.getElementById("feat-slots-objects").checked = params.get("slotsObjects") !== "false";
+    }
+    if (params.has("requireBoth")) {
+        document.getElementById("feat-require-both").checked = params.get("requireBoth") === "true";
+    }
+    if (params.has("requireScope")) {
+        document.getElementById("feat-require-scope").checked = params.get("requireScope") === "true";
+    }
+    for (let id of ["feat-slots-objects", "feat-require-both", "feat-require-scope"]) {
+        document.getElementById(id).onchange = executeCode;
+    }
 
     editor = monaco.editor.create(document.getElementById("editor"), {
         value: source,
